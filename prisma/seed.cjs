@@ -5,11 +5,26 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
+function resolvePortfolioItemsPath() {
+  const candidates = [
+    process.env.PORTFOLIO_ITEMS_PATH,
+    path.resolve(__dirname, '../../Frontend/src/data/portfolioItems.js'),
+    path.resolve(__dirname, '../../src/data/portfolioItems.js'),
+  ].filter(Boolean);
+
+  const existingPath = candidates.find((candidate) => fs.existsSync(candidate));
+
+  if (!existingPath) {
+    throw new Error(
+      `Could not find portfolioItems.js. Checked:\n${candidates.join('\n')}`,
+    );
+  }
+
+  return existingPath;
+}
+
 function loadPortfolioItems() {
-  const sourcePath = path.resolve(
-    __dirname,
-    '../../Frontend/src/data/portfolioItems.js',
-  );
+  const sourcePath = resolvePortfolioItemsPath();
   const source = fs.readFileSync(sourcePath, 'utf8');
   const transformed = source.replace(
     /export default portfolioItems;\s*$/,
