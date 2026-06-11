@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { ImportProjectsBackupDto } from './dto/import-projects-backup.dto';
 import { ReorderProjectsDto } from './dto/reorder-projects.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
@@ -34,6 +35,18 @@ export class ProjectsController {
   @UseGuards(AdminAuthGuard)
   reorder(@Body() reorderProjectsDto: ReorderProjectsDto) {
     return this.projectsService.reorder(reorderProjectsDto.ids);
+  }
+
+  @Get('backup')
+  @UseGuards(AdminAuthGuard)
+  createBackup() {
+    return this.projectsService.createJsonBackup();
+  }
+
+  @Post('backup/import')
+  @UseGuards(AdminAuthGuard)
+  importBackup(@Body() importProjectsBackupDto: ImportProjectsBackupDto) {
+    return this.projectsService.importJsonBackup(importProjectsBackupDto);
   }
 
   @Get(':id')

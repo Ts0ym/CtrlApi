@@ -1,9 +1,10 @@
 import { rmSync } from 'fs';
 import { Project } from '@prisma/client';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { resolve, sep } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { ImportProjectsBackupDto } from './dto/import-projects-backup.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 
 const MANAGED_PREVIEW_PREFIX = '/uploads/project-previews/';
@@ -23,6 +24,68 @@ export class ProjectsService {
     return this.prisma.project.findMany({
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
+  }
+
+  async createJsonBackup(): Promise<{
+    type: 'ctrl-landing-projects-backup';
+    version: 1;
+    exportedAt: string;
+    projects: Project[];
+  }> {
+    const projects = await this.findAll();
+
+    return {
+      type: 'ctrl-landing-projects-backup',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      projects,
+    };
+  }
+
+  async importJsonBackup(
+    backupDto: ImportProjectsBackupDto,
+  ): Promise<{ imported: number; importedProjects: Project[]; projects: Project[] }> {
+    if (
+      backupDto.type !== 'ctrl-landing-projects-backup'
+      || backupDto.version !== 1
+    ) {
+      throw new BadRequestException('Unsupported projects backup file');
+    }
+
+    if (backupDto.projects.length === 0) {
+      return {
+        imported: 0,
+        importedProjects: [],
+        projects: await this.findAll(),
+      };
+    }
+
+    const lastProject = await this.prisma.project.findFirst({
+      orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
+      select: { sortOrder: true },
+    });
+    const startSortOrder = (lastProject?.sortOrder ?? -1) + 1;
+
+    const importedProjects = await this.prisma.$transaction(
+      backupDto.projects.map((project, index) =>
+        this.prisma.project.create({
+          data: {
+            sortOrder: startSortOrder + index,
+            date: project.date,
+            title: project.title,
+            imageSrc: project.imageSrc,
+            videoEmbedCode: project.videoEmbedCode,
+            description: project.description,
+          },
+        }),
+      ),
+    );
+
+    return {
+      imported: backupDto.projects.length,
+      importedProjects,
+      projects: await this.findAll(),
+    };
   }
 
   async reorder(ids: number[]): Promise<Project[]> {
